@@ -1,0 +1,53 @@
+menu "Application configuration"
+
+    menu "WiFi Setting"
+
+        config ESP_WIFI_SSID
+            string "WiFi SSID"
+            default "myssid"
+            help
+                SSID (network name) to connect to.
+
+        config ESP_WIFI_PASSWORD
+            string "WiFi Password"
+            default "mypassword"
+            help
+                WiFi password (WPA or WPA2) to connect to.
+
+        config ESP_MAXIMUM_RETRY
+            int "Maximum retry"
+            default 5
+            help
+                Número máximo de tentativas de reconexão ao AP.
+
+        config MDNS_HOSTNAME
+            string "mDNS Hostname"
+            default "meuesp"
+            help
+                Hostname mDNS do ESP32 (acessível como hostname.local).
+
+    endmenu
+
+    menu "UART Setting"
+
+        config UART_RX_PIN
+            int "GPIO RX do UART2 (vindo do STM32 TX)"
+            default 16
+            help
+                Pino GPIO para receber dados do STM32.
+
+        config UART_TX_PIN
+            int "GPIO TX do UART2 (para STM32 RX, opcional)"
+            default 17
+            help
+                Pino GPIO de transmissão (opcional, não usado no momento).
+
+        config FFT_BINS
+            int "Número de bins FFT por frame"
+            default 256
+            help
+                Deve ser igual ao FFT_BINS configurado no STM32.
+
+    endmenu
+
+endmenu

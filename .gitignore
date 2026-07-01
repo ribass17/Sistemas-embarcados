@@ -1,0 +1,6 @@
+/ESP32/fft_plot/build/
+/ESP32/fft_plot/managed_components/
+/ESP32/fft_plot/sdkconfig
+/ESP32/fft_plot/sdkconfig.old
+/ESP32/fft_plot/dependencies.lock
+/ESP32/fft_plot/.vscode/

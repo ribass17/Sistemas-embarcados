@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FFT Spectrum Analyzer</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background: #0f0f1a; color: #cdd6f4; font-family: monospace; }
+        h1 { text-align: center; padding: 12px 0 4px; font-size: 1.1em;
+             color: #89b4fa; letter-spacing: 2px; }
+        #status { text-align: center; font-size: 0.78em; color: #6c7086;
+                  padding-bottom: 8px; }
+        .chart-wrap { position: relative; height: 65vh; width: 96vw;
+                      margin: 0 auto; }
+    </style>
+</head>
+<body>
+    <h1>FFT SPECTRUM ANALYZER</h1>
+    <div id="status">Conectando...</div>
+    <div class="chart-wrap">
+        <canvas id="fftChart"></canvas>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+    <script src="main.js"></script>
+</body>
+</html>
