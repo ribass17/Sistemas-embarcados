@@ -1,0 +1,10 @@
+{
+  "idf.currentSetup": "/home/ribas/.espressif/v6.0.2/esp-idf",
+  "idf.customExtraVars": {},
+  "clangd.path": "/home/ribas/.espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/clangd",
+  "clangd.arguments": [
+    "--background-index",
+    "--query-driver=**",
+    "--compile-commands-dir=/home/ribas/dev/Sistemas-embarcados/build"
+  ]
+}
