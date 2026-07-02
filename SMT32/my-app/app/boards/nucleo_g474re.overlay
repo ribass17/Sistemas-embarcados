@@ -1,0 +1,49 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * NUCLEO-G474RE overlay para o analisador de espectro em tempo real.
+ *
+ * Pinout:
+ *   PA4  - DAC1_OUT1 / ADC2_IN17 (loopback analógico, já no board DTS)
+ *   PB10 - USART3_TX  → ESP32 RX
+ *   PB11 - USART3_RX  (não usado, conexão física opcional)
+ *   PA5  - LED LD2    (já definido como led0 no board DTS)
+ *   PC13 - Botão B1   (já definido como sw0 no board DTS)
+ *
+ * Alocação DMA1 (RM0440 Tabela 91):
+ *   CH1 (index 0): ADC2  via LL (req 0x24)
+ *   CH3 (index 2): DAC1_CH1 via LL (req 0x06)
+ *   CH4 (index 3): USART3_TX via Zephyr (req 0x1D)
+ */
+
+/* USART3 → ESP32, 115200 8N1, TX+RX com DMA (RX para loopback de validação) */
+&usart3 {
+	pinctrl-0 = <&usart3_tx_pb10 &usart3_rx_pb11>;
+	pinctrl-names = "default";
+	current-speed = <115200>;
+	status = "okay";
+	/* DMA1 CH4 (idx 3) req 0x1D = USART3_TX
+	 * DMA1 CH5 (idx 4) req 0x1C = USART3_RX (loopback via jumper PB10→PB11) */
+	dmas = <&dmamux1 3 0x1D (STM32_DMA_MEMORY_TO_PERIPH | STM32_DMA_MEM_INC)>,
+	       <&dmamux1 4 0x1C (STM32_DMA_PERIPH_TO_MEMORY  | STM32_DMA_MEM_INC)>;
+	dma-names = "tx", "rx";
+};
+
+/* Habilitar DMA1 e DMAMUX1 para o driver Zephyr do USART3 */
+&dma1 {
+	status = "okay";
+};
+
+&dmamux1 {
+	status = "okay";
+};
+
+/* DAC1 desabilitado: dac_hw.c configura tudo via LL (PA4, TIM6, DMA). */
+&dac1 {
+	status = "disabled";
+};
+
+/*
+ * ADC2 e TIM6 são configurados exclusivamente via LL em adc_hw_init()
+ * e dac_hw_init(). Não precisam de nó no DT.
+ */

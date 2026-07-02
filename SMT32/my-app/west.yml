@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: Apache-2.0
+
+manifest:
+  remotes:
+    - name: zephyrproject-rtos
+      url-base: https://github.com/zephyrproject-rtos
+
+  projects:
+    - name: zephyr
+      remote: zephyrproject-rtos
+      revision: main
+      import:
+        name-allowlist:
+          - cmsis_6   # ARM Cortex-M CMSIS core
+          - hal_stm32 # STM32G474 HAL + LL drivers
