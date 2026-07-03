@@ -17,9 +17,6 @@ static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(LED_NODE, gpios);
 #define STACK_SIZE 512
 #define PRIORITY   10
 
-K_THREAD_STACK_DEFINE(led_stack, STACK_SIZE);
-static struct k_thread led_thread;
-
 static void led_entry(void *p1, void *p2, void *p3)
 {
 	ARG_UNUSED(p1); ARG_UNUSED(p2); ARG_UNUSED(p3);
@@ -36,11 +33,5 @@ static void led_entry(void *p1, void *p2, void *p3)
 	}
 }
 
-void led_init(void)
-{
-	k_thread_create(&led_thread, led_stack,
-			K_THREAD_STACK_SIZEOF(led_stack),
-			led_entry, NULL, NULL, NULL,
-			PRIORITY, 0, K_NO_WAIT);
-	k_thread_name_set(&led_thread, "led_task");
-}
+K_THREAD_DEFINE(led_task_id, STACK_SIZE, led_entry, NULL, NULL, NULL,
+		 PRIORITY, 0, 0);

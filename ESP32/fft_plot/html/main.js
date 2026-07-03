@@ -3,23 +3,24 @@
 const statusEl = document.getElementById('status');
 
 const chart = new Chart(document.getElementById('fftChart').getContext('2d'), {
-    type: 'scatter',
-    data: { datasets: [{ data: [], pointRadius: 2,
-                         pointBackgroundColor: 'rgba(137, 180, 250, 0.9)',
-                         pointBorderWidth: 0 }] },
+    type: 'line',
+    data: { datasets: [{ data: [], borderColor: '#0072BD', borderWidth: 1,
+                         pointRadius: 0, fill: false, tension: 0 }] },
     options: {
         animation: false,
         responsive: true,
         maintainAspectRatio: false,
+        parsing: false,
         plugins: { legend: { display: false } },
         scales: {
-            x: { title: { display: true, text: 'Hz',        color: '#6c7086' },
-                 ticks: { color: '#6c7086' },
-                 grid:  { color: 'rgba(255,255,255,0.05)' } },
-            y: { title: { display: true, text: 'Magnitude', color: '#6c7086' },
-                 ticks: { color: '#6c7086' },
-                 grid:  { color: 'rgba(255,255,255,0.08)' },
-                 beginAtZero: true, max: 65535 }
+            x: { type: 'linear',
+                 title: { display: true, text: 'Frequency', color: '#333' },
+                 ticks: { color: '#333' },
+                 grid:  { color: '#e0e0e0' } },
+            y: { title: { display: true, text: 'Power', color: '#333' },
+                 ticks: { color: '#333' },
+                 grid:  { color: '#e0e0e0' },
+                 beginAtZero: true }
         }
     }
 });

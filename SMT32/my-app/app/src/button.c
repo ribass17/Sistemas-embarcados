@@ -23,9 +23,6 @@ K_SEM_DEFINE(btn_sem, 0, 1);
 #define STACK_SIZE 512
 #define PRIORITY   5
 
-K_THREAD_STACK_DEFINE(btn_stack, STACK_SIZE);
-static struct k_thread btn_thread;
-
 /* ISR: chamada pelo subsistema GPIO na borda ativa do botão */
 static void btn_isr(const struct device *dev, struct gpio_callback *cb,
 		    uint32_t pins)
@@ -39,6 +36,16 @@ static void btn_isr(const struct device *dev, struct gpio_callback *cb,
 static void btn_entry(void *p1, void *p2, void *p3)
 {
 	ARG_UNUSED(p1); ARG_UNUSED(p2); ARG_UNUSED(p3);
+
+	if (!device_is_ready(btn.port)) {
+		LOG_ERR("GPIO do botão não pronto");
+		return;
+	}
+
+	gpio_pin_configure_dt(&btn, GPIO_INPUT);
+	gpio_pin_interrupt_configure_dt(&btn, GPIO_INT_EDGE_TO_ACTIVE);
+	gpio_init_callback(&btn_gpio_cb, btn_isr, BIT(btn.pin));
+	gpio_add_callback(btn.port, &btn_gpio_cb);
 
 	while (1) {
 		/* Bloqueia sem consumir CPU até o próximo clique */
@@ -54,21 +61,5 @@ static void btn_entry(void *p1, void *p2, void *p3)
 	}
 }
 
-void button_init(void)
-{
-	if (!device_is_ready(btn.port)) {
-		LOG_ERR("GPIO do botão não pronto");
-		return;
-	}
-
-	gpio_pin_configure_dt(&btn, GPIO_INPUT);
-	gpio_pin_interrupt_configure_dt(&btn, GPIO_INT_EDGE_TO_ACTIVE);
-	gpio_init_callback(&btn_gpio_cb, btn_isr, BIT(btn.pin));
-	gpio_add_callback(btn.port, &btn_gpio_cb);
-
-	k_thread_create(&btn_thread, btn_stack,
-			K_THREAD_STACK_SIZEOF(btn_stack),
-			btn_entry, NULL, NULL, NULL,
-			PRIORITY, 0, K_NO_WAIT);
-	k_thread_name_set(&btn_thread, "button_task");
-}
+K_THREAD_DEFINE(button_task_id, STACK_SIZE, btn_entry, NULL, NULL, NULL,
+		 PRIORITY, 0, 0);

@@ -1,20 +1,17 @@
 /*
- * fft_uart_task: FFT 512 pts sobre ADC, envia frame 518 bytes.
- * Loopback: USART3 TX (PB10) → jumper → USART3 RX (PB11).
- * O frame recebido é parseado e o bin dominante impresso via shell.
+ * fft_uart_task: FFT 512 pts sobre ADC, envia frame 518 bytes via USART3
+ * TX (PB10) para o ESP32 (GND comum obrigatório entre as placas).
  */
 
 #include <zephyr/kernel.h>
 #include <zephyr/device.h>
 #include <zephyr/drivers/uart.h>
 #include <zephyr/logging/log.h>
-#include <string.h>
 
 #include <arm_math.h>
 
 #include "sync.h"
 #include "adc_hw.h"
-#include "fft_uart.h"
 #include "dac_lut.h"
 
 LOG_MODULE_REGISTER(fft_uart, LOG_LEVEL_INF);
@@ -37,87 +34,14 @@ static float32_t fft_out[ADC_BUF_LEN];
 static float32_t mag[FFT_BINS];
 static fft_frame_t tx_frame;
 
-/* ---------- RX loopback — acumulador de bytes ---------- */
-#define RX_DMA_LEN   64
-#define RX_ACCUM_LEN 600
-
-static uint8_t rx_dma[RX_DMA_LEN];
-static uint8_t rx_accum[RX_ACCUM_LEN];
-static uint32_t rx_pos;
-
-static void rx_try_parse(void)
-{
-	/* Busca sync 0xAA 0x55 seguido de frame completo */
-	for (uint32_t i = 0; i + FRAME_TOTAL <= rx_pos; i++) {
-		if (rx_accum[i] != 0xAA || rx_accum[i + 1] != 0x55) {
-			continue;
-		}
-
-		const fft_frame_t *f = (const fft_frame_t *)(rx_accum + i);
-		uint32_t sr = f->sample_rate;
-
-		/* Bin dominante (ignora DC bin 0) */
-		uint16_t peak_val = 0;
-		uint16_t peak_bin = 1;
-
-		for (int b = 1; b < FFT_BINS; b++) {
-			if (f->data[b] > peak_val) {
-				peak_val = f->data[b];
-				peak_bin = b;
-			}
-		}
-
-		uint32_t freq_hz = (uint32_t)peak_bin * sr / (2U * FFT_BINS);
-
-		printk("LOOP RX: sr=%u  bin=%u  freq=%u Hz  val=%u/65535\n",
-		       sr, peak_bin, freq_hz, peak_val);
-
-		/* Descarta bytes até depois deste frame */
-		uint32_t consumed = i + FRAME_TOTAL;
-
-		rx_pos -= consumed;
-		memmove(rx_accum, rx_accum + consumed, rx_pos);
-		return;
-	}
-
-	/* Buffer cheio sem sync — descarta para não travar */
-	if (rx_pos >= RX_ACCUM_LEN) {
-		rx_pos = 0;
-	}
-}
-
 /* ---------- Callback UART ---------- */
 static void uart_cb(const struct device *dev, struct uart_event *evt, void *ud)
 {
 	ARG_UNUSED(ud);
+	ARG_UNUSED(dev);
 
-	switch (evt->type) {
-	case UART_TX_DONE:
+	if (evt->type == UART_TX_DONE) {
 		k_sem_give(&uart_tx_sem);
-		break;
-
-	case UART_RX_RDY: {
-		const uint8_t *src = evt->data.rx.buf + evt->data.rx.offset;
-		uint32_t len = evt->data.rx.len;
-		uint32_t copy = MIN(len, RX_ACCUM_LEN - rx_pos);
-
-		memcpy(rx_accum + rx_pos, src, copy);
-		rx_pos += copy;
-		rx_try_parse();
-		break;
-	}
-
-	case UART_RX_BUF_REQUEST:
-		uart_rx_buf_rsp(dev, rx_dma, RX_DMA_LEN);
-		break;
-
-	case UART_RX_DISABLED:
-		rx_pos = 0;
-		uart_rx_enable(dev, rx_dma, RX_DMA_LEN, SYS_FOREVER_US);
-		break;
-
-	default:
-		break;
 	}
 }
 
@@ -125,12 +49,16 @@ static void uart_cb(const struct device *dev, struct uart_event *evt, void *ud)
 #define STACK_SIZE 4096
 #define PRIORITY   7
 
-K_THREAD_STACK_DEFINE(fft_uart_stack, STACK_SIZE);
-static struct k_thread fft_uart_thread;
-
 static void fft_uart_entry(void *p1, void *p2, void *p3)
 {
 	ARG_UNUSED(p1); ARG_UNUSED(p2); ARG_UNUSED(p3);
+
+	if (!device_is_ready(uart_dev)) {
+		LOG_ERR("USART3 nao pronto");
+		return;
+	}
+
+	uart_callback_set(uart_dev, uart_cb, NULL);
 
 	arm_rfft_fast_instance_f32 fft;
 
@@ -144,15 +72,6 @@ static void fft_uart_entry(void *p1, void *p2, void *p3)
 		/* 1. Captura 512 amostras ADC via DMA2 */
 		adc_hw_start_capture();
 		k_sem_take(&adc_ready_sem, K_FOREVER);
-
-		/* Diagnóstico: imprime primeiros 8 valores brutos uma vez */
-		static bool dbg_printed;
-		if (!dbg_printed) {
-			dbg_printed = true;
-			printk("ADC raw[0..7]: %u %u %u %u %u %u %u %u\n",
-			       adc_buf[0], adc_buf[1], adc_buf[2], adc_buf[3],
-			       adc_buf[4], adc_buf[5], adc_buf[6], adc_buf[7]);
-		}
 
 		/* 2. uint16 → float32, remove DC */
 		for (int i = 0; i < (int)ADC_BUF_LEN; i++) {
@@ -193,21 +112,5 @@ static void fft_uart_entry(void *p1, void *p2, void *p3)
 	}
 }
 
-/* ---------- API pública ---------- */
-
-void fft_uart_init(void)
-{
-	if (!device_is_ready(uart_dev)) {
-		LOG_ERR("USART3 nao pronto");
-		return;
-	}
-
-	uart_callback_set(uart_dev, uart_cb, NULL);
-	uart_rx_enable(uart_dev, rx_dma, RX_DMA_LEN, SYS_FOREVER_US);
-
-	k_thread_create(&fft_uart_thread, fft_uart_stack,
-			K_THREAD_STACK_SIZEOF(fft_uart_stack),
-			fft_uart_entry, NULL, NULL, NULL,
-			PRIORITY, 0, K_NO_WAIT);
-	k_thread_name_set(&fft_uart_thread, "fft_uart");
-}
+K_THREAD_DEFINE(fft_uart_task_id, STACK_SIZE, fft_uart_entry, NULL, NULL, NULL,
+		 PRIORITY, 0, 0);

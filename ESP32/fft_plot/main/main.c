@@ -7,7 +7,6 @@
 #include "mdns.h"
 #include "web_server.h"
 #include "uart_fft.h"
-#include "stm32_sim.h"  // REMOVER quando STM32 estiver conectado
 
 static const char *TAG = "main";
 static EventGroupHandle_t s_wifi_event_group;
@@ -99,6 +98,5 @@ void app_main(void)
 
     assert(web_server_start() != NULL);
 
-    stm32_sim_start();   // REMOVER quando STM32 estiver conectado
     uart_fft_start();
 }
