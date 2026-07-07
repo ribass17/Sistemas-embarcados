@@ -1,14 +1,10 @@
 /*
- * led_task — pisca o LED LD2 (PA5, alias led0) a cada 500 ms.
- * Referência visual de temporização e corretude do scheduler.
- * Usa k_msleep (yield cooperativo, sem polling).
+ * led_task — pisca o LED LD2 a cada 500 ms.
  */
 
 #include <zephyr/kernel.h>
 #include <zephyr/drivers/gpio.h>
-#include <zephyr/logging/log.h>
-
-LOG_MODULE_REGISTER(led_task, LOG_LEVEL_INF);
+#include <zephyr/sys/printk.h>
 
 #define LED_NODE DT_ALIAS(led0)
 static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(LED_NODE, gpios);
@@ -22,7 +18,7 @@ static void led_entry(void *p1, void *p2, void *p3)
 	ARG_UNUSED(p1); ARG_UNUSED(p2); ARG_UNUSED(p3);
 
 	if (!device_is_ready(led.port)) {
-		LOG_ERR("GPIO do LED não pronto");
+		printk("Error: GPIO do LED não pronto\n");
 		return;
 	}
 	gpio_pin_configure_dt(&led, GPIO_OUTPUT_INACTIVE);

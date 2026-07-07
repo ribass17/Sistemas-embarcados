@@ -1,18 +1,15 @@
 /*
- * button_task — detecta o pressionamento do botão B1 (PC13, alias sw0)
- * e alterna a LUT do DAC entre bin 100 (~8613 Hz) e bin 200 (~17227 Hz).
- *
- * Sem polling: GPIO interrupt → k_sem_give(btn_sem) → button_task k_sem_take.
+ * button_task — detecta o pressionamento do botão B1 e alterna a senoide do 
+ *DAC entre bin 100 (~8613 Hz) e bin 200 (~17227 Hz).
  */
 
 #include <zephyr/kernel.h>
 #include <zephyr/drivers/gpio.h>
-#include <zephyr/logging/log.h>
+#include <zephyr/sys/printk.h>
 
-#include "sync.h"
-#include "dac_hw.h"
-
-LOG_MODULE_REGISTER(btn_task, LOG_LEVEL_INF);
+/* dac_hw.c não tem header próprio — extern direto no ponto de uso. */
+extern void dac_hw_toggle_sen(void);
+extern atomic_t sen_sel; /* definido em dac_hw.c; só lido aqui p/ log */
 
 #define BTN_NODE DT_ALIAS(sw0)
 static const struct gpio_dt_spec btn = GPIO_DT_SPEC_GET(BTN_NODE, gpios);
@@ -38,7 +35,7 @@ static void btn_entry(void *p1, void *p2, void *p3)
 	ARG_UNUSED(p1); ARG_UNUSED(p2); ARG_UNUSED(p3);
 
 	if (!device_is_ready(btn.port)) {
-		LOG_ERR("GPIO do botão não pronto");
+		printk("Error: GPIO do botão não pronto\n");
 		return;
 	}
 
@@ -51,13 +48,13 @@ static void btn_entry(void *p1, void *p2, void *p3)
 		/* Bloqueia sem consumir CPU até o próximo clique */
 		k_sem_take(&btn_sem, K_FOREVER);
 
-		/* Debounce simples: ignorar eventos seguidos em < 200 ms */
+		/* Debounce simples: ignora eventos em rajada por 200 ms */
 		k_msleep(200);
 		k_sem_reset(&btn_sem); /* descartar eventos acumulados */
 
-		dac_hw_toggle_lut();
-		LOG_INF("Botão pressionado → LUT %s",
-			(atomic_get(&lut_sel) == 0) ? "bin 100" : "bin 200");
+		dac_hw_toggle_sen();
+		printk("Botão pressionado -> seno %s\n",
+		       (atomic_get(&sen_sel) == 0) ? "bin 100" : "bin 200");
 	}
 }
 

@@ -1,20 +1,19 @@
 /*
  * fft_uart_task: FFT 512 pts sobre ADC, envia frame 518 bytes via USART3
- * TX (PB10) para o ESP32 (GND comum obrigatório entre as placas).
  */
 
 #include <zephyr/kernel.h>
 #include <zephyr/device.h>
 #include <zephyr/drivers/uart.h>
-#include <zephyr/logging/log.h>
+#include <zephyr/sys/printk.h>
 
 #include <arm_math.h>
 
-#include "sync.h"
-#include "adc_hw.h"
-#include "dac_lut.h"
+#include "dac_sen.h"
 
-LOG_MODULE_REGISTER(fft_uart, LOG_LEVEL_INF);
+extern struct k_sem adc_ready_sem;
+#define ADC_BUF_LEN 512U
+extern uint16_t adc_buf[ADC_BUF_LEN];
 
 #define FFT_BINS    256
 #define FRAME_TOTAL (2 + 4 + FFT_BINS * 2)   /* 518 bytes */
@@ -54,7 +53,7 @@ static void fft_uart_entry(void *p1, void *p2, void *p3)
 	ARG_UNUSED(p1); ARG_UNUSED(p2); ARG_UNUSED(p3);
 
 	if (!device_is_ready(uart_dev)) {
-		LOG_ERR("USART3 nao pronto");
+		printk("Error: USART3 nao pronto\n");
 		return;
 	}
 
@@ -69,25 +68,18 @@ static void fft_uart_entry(void *p1, void *p2, void *p3)
 	tx_frame.sample_rate = DAC_FS_HZ;
 
 	while (1) {
-		/* 1. Captura 512 amostras ADC via DMA2 */
-		adc_hw_start_capture();
 		k_sem_take(&adc_ready_sem, K_FOREVER);
 
-		/* 2. uint16 → float32, remove DC */
 		for (int i = 0; i < (int)ADC_BUF_LEN; i++) {
 			fft_in[i] = (float32_t)adc_buf[i] - 2048.0f;
 		}
 
-		/* 3. FFT 512 pontos */
 		arm_rfft_fast_f32(&fft, fft_in, fft_out, 0);
 
-		/* 4. Magnitudes — formato packed do rfft_fast:
-		 *    out[0]=DC, out[1]=Nyquist, out[2k]/out[2k+1]=Re/Im bin k */
 		mag[0] = fabsf(fft_out[0]);
 		arm_cmplx_mag_f32(&fft_out[2], &mag[1], FFT_BINS - 2);
 		mag[FFT_BINS - 1] = fabsf(fft_out[1]);
 
-		/* 5. Normaliza pelo pico → uint16 */
 		float32_t peak;
 		uint32_t  peak_idx;
 
@@ -99,13 +91,12 @@ static void fft_uart_entry(void *p1, void *p2, void *p3)
 			tx_frame.data[i] = (uint16_t)(mag[i] / peak * 65535.0f);
 		}
 
-		/* 6. TX via USART3 DMA */
 		int ret = uart_tx(uart_dev, (const uint8_t *)&tx_frame,
 				  FRAME_TOTAL, SYS_FOREVER_US);
 		if (ret == 0) {
 			k_sem_take(&uart_tx_sem, K_FOREVER);
 		} else {
-			LOG_WRN("uart_tx falhou: %d", ret);
+			printk("Warning: uart_tx falhou: %d\n", ret);
 		}
 
 		k_msleep(100);

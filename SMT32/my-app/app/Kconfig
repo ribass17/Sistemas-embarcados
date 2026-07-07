@@ -10,6 +10,16 @@ menu "Zephyr"
 source "Kconfig.zephyr"
 endmenu
 
-module = APP
-module-str = APP
-source "subsys/logging/Kconfig.template.log_config"
+config APP_WITH_STM32_HAL
+	default y
+	bool
+	select USE_STM32_HAL_GPIO
+	select USE_STM32_HAL_ADC
+	select USE_STM32_HAL_ADC_EX
+	select USE_STM32_HAL_DAC
+	select USE_STM32_HAL_DAC_EX
+	select USE_STM32_HAL_DMA
+	select USE_STM32_HAL_DMA_EX
+	select USE_STM32_HAL_CORTEX
+	select USE_STM32_HAL_TIM
+	select USE_STM32_HAL_TIM_EX

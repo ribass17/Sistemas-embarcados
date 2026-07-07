@@ -1,22 +1,14 @@
 /*
- * Comandos de diagnóstico para o Zephyr Shell (console ST-LINK / lpuart1).
+ * sysinfo tasks    — lista threads (nome, prio, stack)
+ * sysinfo rt       — tempo de CPU por thread 
+ * sysinfo heap     — estatísticas do heap do kernel
  *
- * Uso:
- *   uart:~$ sysinfo tasks    — lista threads (nome, prio, stack)
- *   uart:~$ sysinfo heap     — estatísticas do heap do kernel
- *   uart:~$ sysinfo rt       — tempo de CPU por thread (requer THREAD_RUNTIME_STATS)
- *
- * Não intrusivo: apenas lê dados via k_thread_foreach() e k_thread_runtime_stats_get().
- * Nenhuma thread é suspensa ou bloqueada durante a leitura.
  */
 
 #include <zephyr/kernel.h>
 #include <zephyr/shell/shell.h>
 #include <zephyr/sys/mem_stats.h>
-#include <zephyr/logging/log.h>
 #include <stdio.h>
-
-LOG_MODULE_REGISTER(shell_cmds, LOG_LEVEL_INF);
 
 /* ---------- sysinfo tasks ---------- */
 
@@ -51,7 +43,6 @@ static int cmd_heap(const struct shell *sh, size_t argc, char **argv)
 {
 	ARG_UNUSED(argc); ARG_UNUSED(argv);
 
-#ifdef CONFIG_SYS_HEAP_RUNTIME_STATS
 	extern struct sys_heap _system_heap;
 	struct sys_memory_stats stats;
 
@@ -63,9 +54,6 @@ static int cmd_heap(const struct shell *sh, size_t argc, char **argv)
 	} else {
 		shell_print(sh, "  Estatísticas de heap indisponíveis.");
 	}
-#else
-	shell_print(sh, "  CONFIG_SYS_HEAP_RUNTIME_STATS não habilitado.");
-#endif
 	return 0;
 }
 
@@ -73,7 +61,6 @@ static int cmd_heap(const struct shell *sh, size_t argc, char **argv)
 
 static void print_rt_cb(const struct k_thread *t, void *user_data)
 {
-#ifdef CONFIG_THREAD_RUNTIME_STATS
 	uint64_t sys_total = (uint64_t)(uintptr_t)user_data;
 	struct k_thread_runtime_stats stats;
 
@@ -90,17 +77,12 @@ static void print_rt_cb(const struct k_thread *t, void *user_data)
 	       (name && name[0]) ? name : "(sem nome)",
 	       (unsigned long long)stats.execution_cycles,
 	       pct);
-#else
-	ARG_UNUSED(t);
-	ARG_UNUSED(user_data);
-#endif
 }
 
 static int cmd_rt(const struct shell *sh, size_t argc, char **argv)
 {
 	ARG_UNUSED(argc); ARG_UNUSED(argv);
 
-#ifdef CONFIG_THREAD_RUNTIME_STATS
 	struct k_thread_runtime_stats all;
 	k_thread_runtime_stats_all_get(&all);
 	uint64_t sys_total = all.execution_cycles;
@@ -109,10 +91,6 @@ static int cmd_rt(const struct shell *sh, size_t argc, char **argv)
 	shell_print(sh, "  -------------------------------------------------------");
 	k_thread_foreach_unlocked(print_rt_cb, (void *)(uintptr_t)sys_total);
 	return 0;
-#else
-	shell_print(sh, "  CONFIG_THREAD_RUNTIME_STATS nao habilitado.");
-	return 0;
-#endif
 }
 
 /* ---------- Registro de subcomandos ---------- */
