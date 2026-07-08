@@ -3,10 +3,12 @@
 
 extern void dac_hw_init(void);
 extern void adc_hw_init(void);
+extern void led_hw_init(void);
 
 int main(void)
 {
 	dac_hw_init();
 	adc_hw_init();
+	led_hw_init();
 	return 0;
 }

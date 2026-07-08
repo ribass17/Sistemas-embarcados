@@ -1,5 +1,7 @@
 /*
- * led_task — pisca o LED LD2 a cada 500 ms.
+ * led_hw_init — pisca o LED LD2 a cada 500 ms via k_timer periódico.
+ * Sem thread dedicada: como o professor faz no ex_freertos_g474 (timer de
+ * software puro), não vale a pena gastar uma thread inteira só pra isso.
  */
 
 #include <zephyr/kernel.h>
@@ -10,24 +12,22 @@
 static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(LED_NODE, gpios);
 
 #define BLINK_MS 500U
-#define STACK_SIZE 512
-#define PRIORITY   10
 
-static void led_entry(void *p1, void *p2, void *p3)
+static void led_expiry(struct k_timer *timer)
 {
-	ARG_UNUSED(p1); ARG_UNUSED(p2); ARG_UNUSED(p3);
+	ARG_UNUSED(timer);
+	gpio_pin_toggle_dt(&led);
+}
 
+K_TIMER_DEFINE(led_blink_timer, led_expiry, NULL);
+
+void led_hw_init(void)
+{
 	if (!device_is_ready(led.port)) {
 		printk("Error: GPIO do LED não pronto\n");
 		return;
 	}
 	gpio_pin_configure_dt(&led, GPIO_OUTPUT_INACTIVE);
 
-	while (1) {
-		gpio_pin_toggle_dt(&led);
-		k_msleep(BLINK_MS);
-	}
+	k_timer_start(&led_blink_timer, K_MSEC(BLINK_MS), K_MSEC(BLINK_MS));
 }
-
-K_THREAD_DEFINE(led_task_id, STACK_SIZE, led_entry, NULL, NULL, NULL,
-		 PRIORITY, 0, 0);

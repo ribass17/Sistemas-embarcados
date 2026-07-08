@@ -1,5 +1,6 @@
 /*
  * ADC2_IN17 (PA4) + DMA2_Channel1 — captura de 512 amostras via TIM6_TRGO,
+
  */
 
 #include <zephyr/kernel.h>

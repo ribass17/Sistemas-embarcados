@@ -1,13 +1,16 @@
 /*
- * button_task — detecta o pressionamento do botão B1 e alterna a senoide do 
+ * button_task — detecta o pressionamento do botão B1 e alterna a senoide do
  *DAC entre bin 100 (~8613 Hz) e bin 200 (~17227 Hz).
+ *
+ * Debounce via k_timer retriggerable: cada borda reinicia um one-shot de
+ * 100 ms; só quando o timer expira de fato (100 ms sem nova borda) é que o
+ * pino é relido e, se ainda ativo, o evento é sinalizado pra thread.
  */
 
 #include <zephyr/kernel.h>
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/sys/printk.h>
 
-/* dac_hw.c não tem header próprio — extern direto no ponto de uso. */
 extern void dac_hw_toggle_sen(void);
 extern atomic_t sen_sel; /* definido em dac_hw.c; só lido aqui p/ log */
 
@@ -17,8 +20,12 @@ static struct gpio_callback btn_gpio_cb;
 
 K_SEM_DEFINE(btn_sem, 0, 1);
 
-#define STACK_SIZE 512
-#define PRIORITY   5
+#define DEBOUNCE_MS 100
+#define STACK_SIZE  512
+#define PRIORITY    5
+
+static void btn_debounce_expiry(struct k_timer *timer);
+K_TIMER_DEFINE(btn_debounce_timer, btn_debounce_expiry, NULL);
 
 /* ISR: chamada pelo subsistema GPIO na borda ativa do botão */
 static void btn_isr(const struct device *dev, struct gpio_callback *cb,
@@ -27,7 +34,17 @@ static void btn_isr(const struct device *dev, struct gpio_callback *cb,
 	ARG_UNUSED(dev);
 	ARG_UNUSED(cb);
 	ARG_UNUSED(pins);
-	k_sem_give(&btn_sem);
+	/* (Re)inicia o one-shot; repiques dentro da janela só adiam a checagem */
+	k_timer_start(&btn_debounce_timer, K_MSEC(DEBOUNCE_MS), K_NO_WAIT);
+}
+
+/* Timer expirou sem nova borda por DEBOUNCE_MS: pressionamento estabilizado */
+static void btn_debounce_expiry(struct k_timer *timer)
+{
+	ARG_UNUSED(timer);
+	if (gpio_pin_get_dt(&btn)) {
+		k_sem_give(&btn_sem);
+	}
 }
 
 static void btn_entry(void *p1, void *p2, void *p3)
@@ -45,12 +62,8 @@ static void btn_entry(void *p1, void *p2, void *p3)
 	gpio_add_callback(btn.port, &btn_gpio_cb);
 
 	while (1) {
-		/* Bloqueia sem consumir CPU até o próximo clique */
+		/* Bloqueia sem consumir CPU até o próximo clique debounced */
 		k_sem_take(&btn_sem, K_FOREVER);
-
-		/* Debounce simples: ignora eventos em rajada por 200 ms */
-		k_msleep(200);
-		k_sem_reset(&btn_sem); /* descartar eventos acumulados */
 
 		dac_hw_toggle_sen();
 		printk("Botão pressionado -> seno %s\n",
