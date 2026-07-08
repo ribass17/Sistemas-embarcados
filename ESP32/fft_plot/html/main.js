@@ -14,10 +14,10 @@ const chart = new Chart(document.getElementById('fftChart').getContext('2d'), {
         plugins: { legend: { display: false } },
         scales: {
             x: { type: 'linear',
-                 title: { display: true, text: 'Frequency', color: '#333' },
+                 title: { display: true, text: 'Frequência (Hz)', color: '#333' },
                  ticks: { color: '#333' },
                  grid:  { color: '#e0e0e0' } },
-            y: { title: { display: true, text: 'Power', color: '#333' },
+            y: { title: { display: true, text: 'Potência', color: '#333' },
                  ticks: { color: '#333' },
                  grid:  { color: '#e0e0e0' },
                  beginAtZero: true }
